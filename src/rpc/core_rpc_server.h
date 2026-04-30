@@ -197,6 +197,8 @@ namespace cryptonote::rpc {
     void invoke(BNS_RESOLVE& resolve, rpc_context context);
     void invoke(BNS_LOOKUP& lookup, rpc_context context);
     void invoke(BNS_VALUE_DECRYPT& value_decrypt, rpc_context context);
+    void invoke(GET_ASSET_INFO& req, rpc_context context);
+    void invoke(GET_ASSETS& req, rpc_context context);
     void invoke(SET_BOOTSTRAP_DAEMON& set_bootstrap, rpc_context context);
 
 

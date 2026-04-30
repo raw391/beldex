@@ -3686,4 +3686,68 @@ namespace cryptonote::rpc {
     value_decrypt.response["value"] = value.to_readable_value(nettype(), type);
     value_decrypt.response["status"] = STATUS_OK;
   }
+
+  // ---------------------------------------------------------------------------
+  // Confidential Asset RPC handlers
+  // ---------------------------------------------------------------------------
+
+  static nlohmann::json asset_descriptor_to_json(const crypto::hash& asset_id,
+                                                  const cryptonote::asset_descriptor_base& d)
+  {
+    return {
+      {"asset_id",         epee::string_tools::pod_to_hex(asset_id)},
+      {"version",          d.version},
+      {"total_max_supply", d.total_max_supply},
+      {"current_supply",   d.hidden_supply ? 0 : d.current_supply},
+      {"decimal_point",    d.decimal_point},
+      {"ticker",           d.ticker},
+      {"full_name",        d.full_name},
+      {"meta_info",        d.meta_info},
+      {"owner",            epee::string_tools::pod_to_hex(d.owner)},
+      {"hidden_supply",    d.hidden_supply},
+    };
+  }
+
+  void core_rpc_server::invoke(GET_ASSET_INFO& cmd, rpc_context context)
+  {
+    auto& req = cmd.request;
+    if (req.asset_id.size() != 64 || !oxenc::is_hex(req.asset_id))
+      throw rpc_error{ERROR_WRONG_PARAM, "asset_id must be a 64-character hex string"};
+
+    crypto::hash asset_id;
+    oxenc::from_hex(req.asset_id.begin(), req.asset_id.end(),
+                    reinterpret_cast<char*>(asset_id.data));
+
+    auto& db = m_core.get_blockchain_storage().get_db();
+    cryptonote::asset_descriptor_base desc;
+    if (!db.get_asset_descriptor(asset_id, desc))
+    {
+      cmd.response["status"] = "NOT_FOUND";
+      return;
+    }
+
+    cmd.response["status"] = STATUS_OK;
+    cmd.response["asset"]  = asset_descriptor_to_json(asset_id, desc);
+  }
+
+  void core_rpc_server::invoke(GET_ASSETS& cmd, rpc_context context)
+  {
+    auto& req = cmd.request;
+    if (req.count > GET_ASSETS::MAX_COUNT)
+      throw rpc_error{ERROR_WRONG_PARAM, "count exceeds maximum of " +
+                      std::to_string(GET_ASSETS::MAX_COUNT)};
+
+    auto& db = m_core.get_blockchain_storage().get_db();
+    std::vector<std::pair<crypto::hash, cryptonote::asset_descriptor_base>> entries;
+    const uint64_t total = db.get_all_asset_descriptors(req.from_index, req.count, entries);
+
+    nlohmann::json assets = nlohmann::json::array();
+    for (const auto& [id, desc] : entries)
+      assets.push_back(asset_descriptor_to_json(id, desc));
+
+    cmd.response["status"] = STATUS_OK;
+    cmd.response["total"]  = total;
+    cmd.response["assets"] = std::move(assets);
+  }
+
 }  // namespace cryptonote::rpc

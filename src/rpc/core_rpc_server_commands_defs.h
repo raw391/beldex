@@ -67,6 +67,7 @@
 
 #include "cryptonote_core/master_node_quorum_cop.h"
 #include "cryptonote_core/master_node_list.h"
+#include "cryptonote_core/asset_types.h"
 #include "common/beldex.h"
 
 #include <nlohmann/json.hpp>
@@ -2638,6 +2639,64 @@ namespace cryptonote::rpc {
     }request;
   };
 
+  /// RPC: asset/get_asset_info
+  ///
+  /// Retrieve the descriptor for a single confidential asset by its asset_id.
+  ///
+  /// Inputs:
+  ///
+  /// - `asset_id` -- The 64-hex-digit asset identifier (32 bytes).
+  ///
+  /// Output:
+  ///
+  /// - `status`          -- Generic RPC error code. "OK" on success, "NOT_FOUND" if the asset_id is unknown.
+  /// - `asset_id`        -- Echo of the queried asset id (hex).
+  /// - `version`         -- Descriptor serialization version.
+  /// - `total_max_supply` -- Maximum tokens that may ever exist.
+  /// - `current_supply`  -- Current circulating supply (0 if hidden_supply is true).
+  /// - `decimal_point`   -- Display decimal places.
+  /// - `ticker`          -- Short ticker symbol.
+  /// - `full_name`       -- Human-readable asset name.
+  /// - `meta_info`       -- Optional metadata URI / JSON string.
+  /// - `owner`           -- Hex-encoded public key of the asset owner.
+  /// - `hidden_supply`   -- Whether the circulating supply is kept private.
+  struct GET_ASSET_INFO : PUBLIC
+  {
+    static constexpr auto names() { return NAMES("get_asset_info"); }
+
+    struct request_parameters
+    {
+      std::string asset_id; // 64-hex-digit asset identifier
+    } request;
+  };
+
+  /// RPC: asset/get_assets
+  ///
+  /// List registered confidential assets, with optional pagination.
+  ///
+  /// Inputs:
+  ///
+  /// - `from_index` -- (Optional) Start index for pagination (default 0).
+  /// - `count`      -- (Optional) Maximum number of entries to return (default 100, max 1000).
+  ///
+  /// Output:
+  ///
+  /// - `status`  -- Generic RPC error code. "OK" on success.
+  /// - `assets`  -- Array of asset descriptors. Each entry has the same fields as GET_ASSET_INFO output.
+  /// - `total`   -- Total number of registered assets in the chain.
+  struct GET_ASSETS : PUBLIC
+  {
+    static constexpr auto names() { return NAMES("get_assets"); }
+
+    static constexpr uint32_t MAX_COUNT = 1000;
+
+    struct request_parameters
+    {
+      uint32_t from_index = 0;
+      uint32_t count      = 100;
+    } request;
+  };
+
   /// RPC: daemon/flush_cache
   ///
   /// Clear TXs from the daemon cache, currently only the cache storing TX hashes that were previously verified bad by the daemon.
@@ -2714,6 +2773,8 @@ namespace cryptonote::rpc {
     BNS_RESOLVE,
     BNS_LOOKUP,
     BNS_VALUE_DECRYPT,
+    GET_ASSET_INFO,
+    GET_ASSETS,
     OUT_PEERS,
     GET_OUTPUT_DISTRIBUTION,
     POP_BLOCKS,

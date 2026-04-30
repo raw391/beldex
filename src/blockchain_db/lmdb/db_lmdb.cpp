@@ -6443,4 +6443,50 @@ bool BlockchainLMDB::asset_descriptor_exists(const crypto::hash& asset_id) const
 }
 
 
+uint64_t BlockchainLMDB::get_all_asset_descriptors(
+    uint32_t from_index,
+    uint32_t count,
+    std::vector<std::pair<crypto::hash, cryptonote::asset_descriptor_base>>& result) const
+{
+  LOG_PRINT_L3("BlockchainLMDB::" << __func__);
+  check_open();
+
+  TXN_PREFIX_RDONLY();
+  RCURSOR(asset_descriptors);
+
+  result.clear();
+
+  // Count total entries first using MDB_STAT
+  MDB_stat stat{};
+  mdb_stat(*m_txn, m_asset_descriptors, &stat);
+  const uint64_t total = static_cast<uint64_t>(stat.ms_entries);
+
+  if (from_index >= total || count == 0)
+    return total;
+
+  MDB_val k, v;
+  int rc = mdb_cursor_get(m_cursors->asset_descriptors, &k, &v, MDB_FIRST);
+  uint32_t cur = 0;
+  while (rc == MDB_SUCCESS)
+  {
+    if (cur >= from_index)
+    {
+      if (result.size() >= count)
+        break;
+      crypto::hash asset_id;
+      if (k.mv_size == sizeof(asset_id))
+      {
+        std::memcpy(asset_id.data, k.mv_data, sizeof(asset_id));
+        cryptonote::asset_descriptor_base desc;
+        deserialize_asset_descriptor(v.mv_data, v.mv_size, desc);
+        result.emplace_back(asset_id, std::move(desc));
+      }
+    }
+    ++cur;
+    rc = mdb_cursor_get(m_cursors->asset_descriptors, &k, &v, MDB_NEXT);
+  }
+
+  return total;
+}
+
 }  // namespace cryptonote

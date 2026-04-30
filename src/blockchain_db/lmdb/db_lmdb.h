@@ -453,6 +453,9 @@ private:
                                const cryptonote::asset_descriptor_base& desc) override;
   bool remove_asset_descriptor(const crypto::hash& asset_id) override;
   bool asset_descriptor_exists(const crypto::hash& asset_id) const override;
+  uint64_t get_all_asset_descriptors(
+      uint32_t from_index, uint32_t count,
+      std::vector<std::pair<crypto::hash, cryptonote::asset_descriptor_base>>& result) const override;
 
 private:
   template <typename T,

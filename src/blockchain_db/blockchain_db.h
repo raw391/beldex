@@ -1846,6 +1846,14 @@ public:
   /// Returns true if asset_id is registered.
   virtual bool asset_descriptor_exists(const crypto::hash& asset_id) const = 0;
 
+  /// Fills `result` with up to `count` (asset_id, descriptor) pairs starting at cursor
+  /// position `from_index` (0-based insertion order).  Returns the total number of
+  /// registered assets so callers can implement pagination.
+  virtual uint64_t get_all_asset_descriptors(
+      uint32_t from_index,
+      uint32_t count,
+      std::vector<std::pair<crypto::hash, cryptonote::asset_descriptor_base>>& result) const = 0;
+
   // This function accepts an empty timestamps/difficulties array to fill, or
   // a prior timestamps/difficulties array that was filled by a previous call to
   // this same function in which case it will optimally insert and remove the

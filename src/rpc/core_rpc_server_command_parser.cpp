@@ -397,6 +397,16 @@ namespace cryptonote::rpc {
         "type", required{value_decrypt.request.type});
   }
 
+  void parse_request(GET_ASSET_INFO& req, rpc_input in) {
+    get_values(in, "asset_id", required{req.request.asset_id});
+  }
+
+  void parse_request(GET_ASSETS& req, rpc_input in) {
+    get_values(in,
+        "from_index", req.request.from_index,
+        "count",      req.request.count);
+  }
+
   void parse_request(GET_QUORUM_STATE& qs, rpc_input in) {
     get_values(in,
         "end_height", qs.request.end_height,
