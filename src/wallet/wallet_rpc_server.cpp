@@ -36,6 +36,7 @@
 #include <chrono>
 #include <exception>
 #include <oxenc/base64.h>
+#include <oxenc/hex.h>
 
 #include "wallet_rpc_server_error_codes.h"
 #include "wallet_rpc_server.h"
@@ -1168,6 +1169,148 @@ namespace tools
                    res.spent_key_images);
     return res;
   }
+  //------------------------------------------------------------------------------------------------------------------------------
+  // Confidential asset wallet RPC handlers
+  //------------------------------------------------------------------------------------------------------------------------------
+
+  CA_REGISTER_ASSET::response wallet_rpc_server::invoke(CA_REGISTER_ASSET::request&& req)
+  {
+    require_open();
+    CA_REGISTER_ASSET::response res{};
+
+    // Build asset descriptor from request fields.
+    cryptonote::asset_descriptor_base desc{};
+    desc.total_max_supply = req.total_max_supply;
+    desc.decimal_point    = static_cast<uint8_t>(req.decimal_point);
+    desc.ticker           = req.ticker;
+    desc.full_name        = req.full_name;
+    desc.meta_info        = req.meta_info;
+    desc.hidden_supply    = req.hidden_supply;
+    desc.current_supply   = 0;
+
+    if (req.owner.size() != 64 || !oxenc::is_hex(req.owner))
+      throw wallet_rpc_error{error_code::WRONG_ADDRESS, "owner must be a 64-hex-char public key"};
+    oxenc::from_hex(req.owner.begin(), req.owner.end(),
+                    reinterpret_cast<char*>(desc.owner.data));
+
+    const crypto::hash asset_id = cryptonote::asset_descriptor_id(desc);
+    res.asset_id = epee::string_tools::pod_to_hex(asset_id);
+
+    auto ptx_vector = m_wallet->ca_register_asset(desc, req.account_index, req.priority);
+    if (ptx_vector.empty())
+      throw wallet_rpc_error{error_code::TX_NOT_POSSIBLE, "Failed to create asset registration transaction"};
+
+    res.tx_hash = epee::string_tools::pod_to_hex(cryptonote::get_transaction_hash(ptx_vector[0].tx));
+    res.fee     = ptx_vector[0].fee;
+    if (req.get_tx_hex)
+      res.tx_blob = oxenc::to_hex(cryptonote::tx_to_blob(ptx_vector[0].tx));
+
+    if (!req.do_not_relay)
+      m_wallet->commit_tx(ptx_vector);
+
+    return res;
+  }
+
+  //------------------------------------------------------------------------------------------------------------------------------
+  CA_EMIT_ASSET::response wallet_rpc_server::invoke(CA_EMIT_ASSET::request&& req)
+  {
+    require_open();
+    CA_EMIT_ASSET::response res{};
+
+    if (req.asset_id.size() != 64 || !oxenc::is_hex(req.asset_id))
+      throw wallet_rpc_error{error_code::WRONG_ADDRESS, "asset_id must be a 64-hex-char identifier"};
+    if (req.owner_skey_hex.size() != 64 || !oxenc::is_hex(req.owner_skey_hex))
+      throw wallet_rpc_error{error_code::WRONG_ADDRESS, "owner_skey_hex must be a 64-hex-char secret key"};
+
+    crypto::hash asset_id;
+    oxenc::from_hex(req.asset_id.begin(), req.asset_id.end(),
+                    reinterpret_cast<char*>(asset_id.data));
+
+    crypto::secret_key owner_skey;
+    oxenc::from_hex(req.owner_skey_hex.begin(), req.owner_skey_hex.end(),
+                    reinterpret_cast<char*>(owner_skey.data));
+
+    auto ptx_vector = m_wallet->ca_emit_asset(asset_id, req.amount, owner_skey, req.account_index, req.priority);
+    if (ptx_vector.empty())
+      throw wallet_rpc_error{error_code::TX_NOT_POSSIBLE, "Failed to create asset emit transaction"};
+
+    res.tx_hash = epee::string_tools::pod_to_hex(cryptonote::get_transaction_hash(ptx_vector[0].tx));
+    res.fee     = ptx_vector[0].fee;
+    if (req.get_tx_hex)
+      res.tx_blob = oxenc::to_hex(cryptonote::tx_to_blob(ptx_vector[0].tx));
+
+    if (!req.do_not_relay)
+      m_wallet->commit_tx(ptx_vector);
+
+    return res;
+  }
+
+  //------------------------------------------------------------------------------------------------------------------------------
+  CA_BURN_ASSET::response wallet_rpc_server::invoke(CA_BURN_ASSET::request&& req)
+  {
+    require_open();
+    CA_BURN_ASSET::response res{};
+
+    if (req.asset_id.size() != 64 || !oxenc::is_hex(req.asset_id))
+      throw wallet_rpc_error{error_code::WRONG_ADDRESS, "asset_id must be a 64-hex-char identifier"};
+    if (req.owner_skey_hex.size() != 64 || !oxenc::is_hex(req.owner_skey_hex))
+      throw wallet_rpc_error{error_code::WRONG_ADDRESS, "owner_skey_hex must be a 64-hex-char secret key"};
+
+    crypto::hash asset_id;
+    oxenc::from_hex(req.asset_id.begin(), req.asset_id.end(),
+                    reinterpret_cast<char*>(asset_id.data));
+
+    crypto::secret_key owner_skey;
+    oxenc::from_hex(req.owner_skey_hex.begin(), req.owner_skey_hex.end(),
+                    reinterpret_cast<char*>(owner_skey.data));
+
+    auto ptx_vector = m_wallet->ca_burn_asset(asset_id, req.amount, owner_skey, req.account_index, req.priority);
+    if (ptx_vector.empty())
+      throw wallet_rpc_error{error_code::TX_NOT_POSSIBLE, "Failed to create asset burn transaction"};
+
+    res.tx_hash = epee::string_tools::pod_to_hex(cryptonote::get_transaction_hash(ptx_vector[0].tx));
+    res.fee     = ptx_vector[0].fee;
+    if (req.get_tx_hex)
+      res.tx_blob = oxenc::to_hex(cryptonote::tx_to_blob(ptx_vector[0].tx));
+
+    if (!req.do_not_relay)
+      m_wallet->commit_tx(ptx_vector);
+
+    return res;
+  }
+
+  //------------------------------------------------------------------------------------------------------------------------------
+  CA_GET_BALANCE::response wallet_rpc_server::invoke(CA_GET_BALANCE::request&& req)
+  {
+    require_open();
+    CA_GET_BALANCE::response res{};
+
+    if (req.asset_id.size() != 64 || !oxenc::is_hex(req.asset_id))
+      throw wallet_rpc_error{error_code::WRONG_ADDRESS, "asset_id must be a 64-hex-char identifier"};
+
+    crypto::hash asset_id;
+    oxenc::from_hex(req.asset_id.begin(), req.asset_id.end(),
+                    reinterpret_cast<char*>(asset_id.data));
+
+    res.asset_id = req.asset_id;
+    res.balance  = m_wallet->balance_asset(asset_id, req.account_index, false /*strict*/);
+    return res;
+  }
+
+  //------------------------------------------------------------------------------------------------------------------------------
+  CA_GET_ALL_BALANCES::response wallet_rpc_server::invoke(CA_GET_ALL_BALANCES::request&& req)
+  {
+    require_open();
+    CA_GET_ALL_BALANCES::response res{};
+
+    const auto all = m_wallet->all_asset_balances(req.account_index, false /*strict*/);
+    res.balances.reserve(all.size());
+    for (const auto& [id, amount] : all)
+      res.balances.emplace_back(epee::string_tools::pod_to_hex(id), amount);
+
+    return res;
+  }
+
   //------------------------------------------------------------------------------------------------------------------------------
   TRANSFER_SPLIT::response wallet_rpc_server::invoke(TRANSFER_SPLIT::request&& req)
   {
