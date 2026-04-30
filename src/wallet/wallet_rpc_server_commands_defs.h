@@ -32,6 +32,7 @@
 #pragma once
 #include "cryptonote_basic/cryptonote_basic.h"
 #include "cryptonote_basic/subaddress_index.h"
+#include "cryptonote_core/asset_types.h"
 #include "wallet_rpc_server_error_codes.h"
 #include "wallet/transfer_destination.h"
 #include "wallet/transfer_view.h"
@@ -2586,6 +2587,135 @@ This command is only required if the open wallet is one of the owners of a BNS r
     };
   };
   
+  // ---------------------------------------------------------------------------
+  // Confidential Asset wallet RPC commands
+  // ---------------------------------------------------------------------------
+
+  /// Register a new confidential asset on-chain.
+  struct CA_REGISTER_ASSET : RESTRICTED
+  {
+    static constexpr auto names() { return NAMES("ca_register_asset"); }
+
+    struct request
+    {
+      uint64_t    total_max_supply; // Maximum tokens that may ever exist.
+      uint8_t     decimal_point;    // Display decimal places (e.g. 9 for nano-units).
+      std::string ticker;           // Short ticker symbol (e.g. "WBTC").
+      std::string full_name;        // Human-readable asset name.
+      std::string meta_info;        // Optional: metadata URI / JSON string.
+      std::string owner;            // Hex-encoded owner public key (32 bytes = 64 hex chars).
+      bool        hidden_supply;    // Whether circulating supply is kept private on-chain.
+      uint32_t    account_index;    // (Optional) Source account index. Default 0.
+      uint32_t    priority;         // Transaction priority (0-4).
+      bool        do_not_relay;     // (Optional) Do not relay to network. Default false.
+      bool        get_tx_hex;       // Return raw tx hex. Default false.
+
+      KV_MAP_SERIALIZABLE
+    };
+
+    struct response
+    {
+      std::string asset_id;   // Hex-encoded canonical asset identifier (32 bytes).
+      std::string tx_hash;    // Transaction hash.
+      uint64_t    fee;        // Fee charged.
+      std::string tx_blob;    // Raw transaction hex, if get_tx_hex is true.
+
+      KV_MAP_SERIALIZABLE
+    };
+  };
+
+  /// Mint new tokens for an existing confidential asset (owner only).
+  struct CA_EMIT_ASSET : RESTRICTED
+  {
+    static constexpr auto names() { return NAMES("ca_emit_asset"); }
+
+    struct request
+    {
+      std::string asset_id;       // 64-hex asset identifier.
+      uint64_t    amount;         // Number of tokens to mint.
+      std::string owner_skey_hex; // Hex-encoded owner secret key (64 hex chars = 32 bytes).
+      uint32_t    account_index;  // (Optional) Source account. Default 0.
+      uint32_t    priority;       // Transaction priority.
+      bool        do_not_relay;   // (Optional) Default false.
+      bool        get_tx_hex;     // (Optional) Default false.
+
+      KV_MAP_SERIALIZABLE
+    };
+
+    struct response
+    {
+      std::string tx_hash;
+      uint64_t    fee;
+      std::string tx_blob;
+
+      KV_MAP_SERIALIZABLE
+    };
+  };
+
+  /// Permanently destroy tokens of a confidential asset (owner only).
+  struct CA_BURN_ASSET : RESTRICTED
+  {
+    static constexpr auto names() { return NAMES("ca_burn_asset"); }
+
+    struct request
+    {
+      std::string asset_id;
+      uint64_t    amount;
+      std::string owner_skey_hex;
+      uint32_t    account_index;
+      uint32_t    priority;
+      bool        do_not_relay;
+      bool        get_tx_hex;
+
+      KV_MAP_SERIALIZABLE
+    };
+
+    using response = CA_EMIT_ASSET::response;
+  };
+
+  /// Get the wallet balance for a specific confidential asset.
+  struct CA_GET_BALANCE : RESTRICTED
+  {
+    static constexpr auto names() { return NAMES("ca_get_balance"); }
+
+    struct request
+    {
+      std::string asset_id;      // 64-hex asset identifier.
+      uint32_t    account_index; // Subaddress account index. Default 0.
+
+      KV_MAP_SERIALIZABLE
+    };
+
+    struct response
+    {
+      std::string asset_id;
+      uint64_t    balance;           // Total balance (locked + unlocked).
+
+      KV_MAP_SERIALIZABLE
+    };
+  };
+
+  /// Get balances for all confidential assets held in the wallet.
+  struct CA_GET_ALL_BALANCES : RESTRICTED
+  {
+    static constexpr auto names() { return NAMES("ca_get_all_balances"); }
+
+    struct request
+    {
+      uint32_t account_index; // Subaddress account index. Default 0.
+
+      KV_MAP_SERIALIZABLE
+    };
+
+    struct response
+    {
+      // Array of { asset_id (hex), balance (uint64) }
+      std::vector<std::pair<std::string, uint64_t>> balances;
+
+      KV_MAP_SERIALIZABLE
+    };
+  };
+
   /// List of all supported rpc command structs to allow compile-time enumeration of all supported
   /// RPC types.  Every type added above that has an RPC endpoint needs to be added here, and needs
   /// a core_rpc_server::invoke() overload that takes a <TYPE>::request and returns a
@@ -2690,7 +2820,12 @@ This command is only required if the open wallet is one of the owners of a BNS r
     BNS_ADD_KNOWN_NAMES,
     BNS_DECRYPT_VALUE,
     BNS_ENCRYPT_VALUE,
-    COIN_BURN
+    COIN_BURN,
+    CA_REGISTER_ASSET,
+    CA_EMIT_ASSET,
+    CA_BURN_ASSET,
+    CA_GET_BALANCE,
+    CA_GET_ALL_BALANCES
   >;
 
 }
