@@ -84,6 +84,7 @@ add_executable(unit_tests
   varint.cpp
   ringct.cpp
   ca_primitives.cpp
+  ca_asset_registry.cpp
   output_selection.cpp
   vercmp.cpp
   ringdb.cpp
